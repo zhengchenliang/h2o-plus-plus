@@ -125,7 +125,7 @@ int main() {
     });
 
     app.listen_("0.0.0.0", 8080);
-    app.start_();
+    app.serve_();
 
     return 0;
 }
