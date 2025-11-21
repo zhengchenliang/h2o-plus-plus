@@ -272,7 +272,7 @@ clang++ -std=c++20 -Wall -Wextra \
         -pthread \
         -Wl,--copy-dt-needed-entries -lh2o_plus_plus \
         -Wl,--whole-archive -lh2o -Wl,--no-whole-archive \
-        test.c -o test
+        test.cc -o test
 ```
 
 ### Alternative with g++
@@ -286,7 +286,7 @@ g++ -std=c++20 -O3 -pthread -fPIC -shared \
 # Test
 g++ -std=c++20 -O3 -pthread \
     -lh2o_plus_plus -lh2o -lbrotlicommon -lbrotlidec -lbrotlienc -lssl -luv -lz \
-    test.c -o test
+    test.cc -o test
 ```
 
 ## 🎯 Performance
