@@ -1,3 +1,5 @@
+![](https://raw.githubusercontent.com/zhengchenliang/h2o-plus-plus/main/_a200httptest0v1.png)
+
 # h2o++ 🚀
 
 *A modern, high-performance C++ HTTP/HTTPS server library built on H2O and libuv*
@@ -5,7 +7,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![HTTP/2](https://img.shields.io/badge/HTTP-2.0-green.svg)](https://http2.github.io/)
 [![TLS 1.3](https://img.shields.io/badge/TLS-1.3-orange.svg)](https://tools.ietf.org/html/rfc8446)
-[![License](https://img.shields.io/badge/license-MIT-red.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://opensource.org/licenses/MIT)
 
 ## 🌟 Overview
 
@@ -43,7 +45,7 @@ h2o++ is a cutting-edge C++ HTTP/HTTPS server library that combines the power of
 ### Basic HTTP Server
 
 ```cpp
-#include "f200restfunc0v1.hh"
+#include "h2o_plus_plus.h"
 
 int main() {
     http_a app;  // Create HTTP application
@@ -69,7 +71,7 @@ int main() {
 ### HTTPS Server with SSL
 
 ```cpp
-#include "f200restfunc0v1.hh"
+#include "h2o_plus_plus.h"
 
 int main() {
     http_a app;
@@ -93,7 +95,7 @@ int main() {
 ### REST API Example
 
 ```cpp
-#include "f200restfunc0v1.hh"
+#include "h2o_plus_plus.h"
 
 int main() {
     http_a app;
@@ -219,11 +221,8 @@ struct http_m {
 The library includes comprehensive tests demonstrating various features:
 
 ```bash
-# Run basic HTTP test
-cd /root/G1/new2 && ./A200/a200httptest0v1
-
-# Run SSL HTTPS test
-cd /root/G1/new2 && ./A200/a200httptest1v1
+# Run the test (after building with commands above)
+./test
 ```
 
 Test with curl:
@@ -235,29 +234,59 @@ curl http://127.0.0.1:8080/hello
 curl -k https://127.0.0.1:8443/hello
 ```
 
-## 🔧 Build System
+## 🔧 Build & Installation
 
-h2o++ uses a custom build system with the following dependencies:
+### Dependencies
 
-### Required Dependencies
-- **H2O**: High-performance HTTP server library
-- **libuv**: Cross-platform asynchronous I/O
-- **OpenSSL**: SSL/TLS encryption support
-- **nlohmann/json**: JSON parsing and serialization
-- **Brotli**: Compression support (optional)
-- **Zlib**: Compression support
+* **H2O**: High-performance HTTP server library
+* **libuv**: Cross-platform asynchronous I/O
+* **OpenSSL**: SSL/TLS encryption support
+* **nlohmann/json**: JSON parsing and serialization (include yourself)
+* **Brotli**: Compression support (optional)
+* **Zlib**: Compression support
 
-### Build Commands
+### Build Library
 
 ```bash
-# Build REST function library
-fps a3func2build.sh m200.fps:0
+# Compile the library
+clang++ -std=c++20 -Wall -Wextra \
+        -O3 -ggdb -fsanitize=address -fsanitize=leak -fsanitize=undefined \
+        -pthread -fPIC \
+        -c h2o_plus_plus.cc -o h2o_plus_plus.o
 
-# Build HTTP test
-fps a3func2build.sh m200.fps:5
+# Create shared library
+clang++ -rdynamic -shared -fPIC \
+        -lh2o -lbrotlicommon -lbrotlidec -lbrotlienc -lssl -luv -lz \
+        -o libh2o_plus_plus.so h2o_plus_plus.o
 
-# Build all HTTP tests
-fps a3func2build.sh m200.fps:5,6
+# Create static library (optional)
+ar rcs libh2o_plus_plus.a h2o_plus_plus.o
+```
+
+### Build Test
+
+```bash
+# Compile and link test
+clang++ -std=c++20 -Wall -Wextra \
+        -O3 -ggdb -fsanitize=address -fsanitize=leak -fsanitize=undefined \
+        -pthread \
+        -Wl,--copy-dt-needed-entries -lh2o_plus_plus \
+        -Wl,--whole-archive -lh2o -Wl,--no-whole-archive \
+        test.c -o test
+```
+
+### Alternative with g++
+
+```bash
+# Library
+g++ -std=c++20 -O3 -pthread -fPIC -shared \
+    -lh2o -lbrotlicommon -lbrotlidec -lbrotlienc -lssl -luv -lz \
+    h2o_plus_plus.cc -o libh2o_plus_plus.so
+
+# Test
+g++ -std=c++20 -O3 -pthread \
+    -lh2o_plus_plus -lh2o -lbrotlicommon -lbrotlidec -lbrotlienc -lssl -luv -lz \
+    test.c -o test
 ```
 
 ## 🎯 Performance
@@ -279,7 +308,7 @@ h2o++ inherits H2O's exceptional performance characteristics:
 
 ## 📈 Use Cases
 
-- **REST APIs**: High-performance JSON APIs
+- **REST APIs**: High-performance RESTful APIs
 - **Microservices**: Lightweight service communication
 - **Web Applications**: Fast web server backends
 - **API Gateways**: Request routing and transformation
@@ -307,10 +336,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [OpenSSL](https://www.openssl.org/) - SSL/TLS implementation
 - [nlohmann/json](https://github.com/nlohmann/json) - JSON library
 
-## 📞 Support
-
-For questions, issues, or contributions, please [create an issue](https://github.com/your-repo/issues) on GitHub.
-
 ---
 
-**h2o++** - *Where performance meets elegance* ⚡
+<div align="center">
+  <strong>h2o++</strong> - *Where performance meets elegance* ⚡<br>
+  Built with ❤️ using modern C++20
+</div>
