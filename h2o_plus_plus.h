@@ -25,10 +25,116 @@ struct http_s;
 #include <chrono>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/buffer.h>
 #include <uv.h>
 #include <h2o.h>
 #include <h2o/http1.h>
 #include <h2o/http2.h>
+
+/* --------------------------------------------- */
+
+inline short base64_encode_(const std::vector<uint8_t> &_data, std::string& _string) // binary to string
+{
+  if (_data.empty())
+  {
+    _string.clear();
+    return 0;
+  }
+  BIO *b64 = BIO_new(BIO_f_base64());
+  if (!b64)
+  {
+    fprintf(stderr, "base64_encode_() [%d]: Error creating BIO object.\n", getpid());
+    return -1;
+  }
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL); // no newlines
+  BIO *bmem = BIO_new(BIO_s_mem());
+  if (!bmem)
+  {
+    fprintf(stderr, "base64_encode_() [%d]: Error creating BIO memory object.\n", getpid());
+    BIO_free_all(b64);
+    return -2;
+  }
+  b64 = BIO_push(b64, bmem);
+  if (BIO_write(b64, _data.data(), _data.size()) <= 0)
+  {
+    fprintf(stderr, "base64_encode_() [%d]: Error writing to BIO.\n", getpid());
+    BIO_free_all(b64);
+    return -3;
+  }
+  if (BIO_flush(b64) != 1)
+  {
+    fprintf(stderr, "base64_encode_() [%d]: Error flushing BIO.\n", getpid());
+    BIO_free_all(b64);
+    return -4;
+  }
+  BUF_MEM *buffer_ptr = NULL;
+  BIO_get_mem_ptr(b64, &buffer_ptr);
+  if (!buffer_ptr || !buffer_ptr->data || buffer_ptr->length == 0)
+  {
+    fprintf(stderr, "base64_encode_() [%d]: Error getting memory pointer.\n", getpid());
+    BIO_free_all(b64);
+    return -5;
+  }
+  _string.assign(buffer_ptr->data, buffer_ptr->length);
+  BIO_free_all(b64);
+  return 0;
+}
+inline std::string base64_encode_(const std::vector<uint8_t> &_data)
+{
+  std::string result;
+  if (base64_encode_(_data, result) != 0)
+  {
+    fprintf(stderr, "base64_encode() [%d]: Error encoding data.\n", getpid());
+    return "";
+  }
+  return result;
+}
+inline short base64_decode_(const std::string &_string64, std::vector<uint8_t>& _data) // string to binary
+{
+  if (_string64.empty())
+  {
+    _data.clear();
+    return 0;
+  }
+  BIO *b64 = BIO_new(BIO_f_base64());
+  if (!b64)
+  {
+    fprintf(stderr, "base64_decode_() [%d]: Error creating BIO object.\n", getpid());
+    return -1;
+  }
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL); // no newlines
+  BIO *bmem = BIO_new_mem_buf(_string64.data(), _string64.size());
+  if (!bmem)
+  {
+    fprintf(stderr, "base64_decode_() [%d]: Error creating BIO memory object.\n", getpid());
+    BIO_free_all(b64);
+    return -2;
+  }
+  b64 = BIO_push(b64, bmem);
+  std::vector<uint8_t> result(EVP_DECODE_LENGTH(_string64.size()));
+  int decoded_len = BIO_read(b64, result.data(), result.size());
+  if (decoded_len < 0)
+  {
+    fprintf(stderr, "base64_decode_() [%d]: Error reading from BIO.\n", getpid());
+    BIO_free_all(b64);
+    return -3;
+  }
+  _data.assign(result.begin(), result.begin() + decoded_len);
+  BIO_free_all(b64);
+  return 0;
+}
+inline std::vector<uint8_t> base64_decode_(const std::string &_string64)
+{
+  std::vector<uint8_t> result;
+  if (base64_decode_(_string64, result) != 0)
+  {
+    fprintf(stderr, "base64_decode() [%d]: Error decoding data.\n", getpid());
+    return {};
+  }
+  return result;
+}
 
 /* --------------------------------------------- */
 
