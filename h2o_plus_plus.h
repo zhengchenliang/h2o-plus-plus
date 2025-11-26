@@ -138,6 +138,8 @@ inline std::vector<uint8_t> base64_decode_(const std::string &_string64)
 
 /* --------------------------------------------- */
 
+enum class http_b : bool { X = false, O = true }; // bool ambiguous with "char"
+
 struct http_m // method
 {
   enum value : uint8_t
