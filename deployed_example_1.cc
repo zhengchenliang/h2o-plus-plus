@@ -106,16 +106,32 @@ app.get_("/campmoni/v2", [&](const http_q& q, http_s& s)
     });
   }
 });
-// health check endpoint
+// health check endpoint with user blocking
 app.get_("/health", [&](const http_q& q, http_s& s)
 {
-  s.status_(200);
-  s.send_json_(nlohmann::json{
-    {"status", "healthy"},
-    {"service", "CMS Campaign Monitor"},
-    {"version", "v2"},
-    {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())}
-  });
+  std::thread([s]() mutable
+  {
+    try
+    {
+      std::this_thread::sleep_for(std::chrono::seconds(10)); // make user wait
+      s.status_(200);
+      s.send_json_(nlohmann::json{
+        {"status", "healthy"},
+        {"service", "CMS Campaign Monitor"},
+        {"version", "v2"},
+        {"processing_time", "10 seconds"},
+        {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())}
+      });
+    }
+    catch (const std::exception& e)
+    {
+      s.status_(500);
+      s.send_json_(nlohmann::json{
+        {"status", "error"},
+        {"error", "Internal server error during health check"}
+      });
+    }
+  }).detach();
 });
 
 std::cout << "Service ready. Listening on http://127.0.0.1:15472" << std::endl;
