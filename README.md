@@ -1,342 +1,357 @@
 ![](https://raw.githubusercontent.com/zhengchenliang/h2o-plus-plus/main/_a5472deplmoni0v2.png)
 
-# Campaign Management Tools: campdown and campdeal
-
-This document describes how to use the `campdown` and `campdeal` tools for managing campaign-related JIRA tickets.
+# http_a Server Library - Professional HTTP Server Framework
 
 ## Overview
 
-- **campdown**: Downloads and processes campaign data from `campaigns.json` and JIRA issues, creating serialized data files and text reports.
-- **campdeal**: Analyzes JIRA ticket status mismatches based on campaign data and can automatically execute status transitions.
+`http_a` is a high-performance, asynchronous HTTP server library built on h2o and libuv, designed for enterprise-grade applications requiring robust HTTP request handling, command execution, and real-time processing capabilities.
 
-## Prerequisites
+## Key Features
 
-### Python Environment
+- **High-Performance Async I/O**: Built on h2o HTTP server and libuv event loop
+- **Thread-Safe Request Processing**: Dedicated thread pool for business logic
+- **Built-in Command Execution**: Secure process execution with timeout and capture controls
+- **Automatic Compression**: gzip, deflate, and brotli support
+- **JSON Response Handling**: Native JSON serialization and parsing
+- **SSL/TLS Support**: Full HTTPS capability with custom certificates
+- **Timeout Management**: Configurable request and execution timeouts
+- **Security**: wordexp-based argument parsing prevents shell injection
 
-The tools require Python with the `jira` library. Set up a virtual environment:
+## Quick Start
 
-```bash
-cd /root/G1/new2/A5472
-python -m venv a5472_venv
-source a5472_venv/bin/activate
-pip install jira
-deactivate
-```
+### Server Initialization
 
-### Required Files
+```cpp
 
-- `campaigns.json`: JSON file containing campaign status information
-  - Format: `{"CampaignName": {"go": true/false}, ...}`
-  - `go: true` = ENABLED, `go: false` = DISABLED
+int main() {
+    http_a app;
 
-### JIRA Configuration
+    // Optional: Enable SSL
+    // app.ssl_("/path/to/cert.pem", "/path/to/key.pem");
 
-JIRA connection settings are configured in `_f5472jirafunc0v1.hh`:
-- Server: `https://its.cern.ch/jira`
-- Project: `PRCAMPAIGNS`
-- Authentication: Token-based
+    // Bind to address and port
+    app.listen_("127.0.0.1", 8080);
 
-## Tool Usage
+    // Optional: Signal handling for graceful shutdown
+    app.signal_();
 
-### campdown
+    // Register endpoints (see below)
+    // ...
 
-**Purpose**: Download and process campaign and JIRA data.
+    // Start server (blocking)
+    app.serve_();
 
-**Usage**:
-```bash
-./a5472campdown0v1
-```
+    // Alternative: Start in background thread
+    // app.start_();
+    // then do anything to block until shutdown
 
-**What it does**:
-1. Reads `campaigns.json` and extracts campaign status (ENABLED/DISABLED)
-2. Fetches JIRA issues from the PRCAMPAIGNS project (with pagination)
-3. Serializes data to binary files:
-   - `cc_json.dat`: Campaign status data
-   - `cc_jira.dat`: JIRA issues data
-4. Generates text reports:
-   - `cc_json.txt`: Full campaign list with status
-   - `cc_jira.txt`: Full JIRA issues list
-
-**Output**:
-- Console: Summary statistics and first 10 issues
-- Files: Binary `.dat` files and text `.txt` reports
-
-**Notes**:
-- Fetches issues in batches of 100 to avoid connection issues
-- Shows progress: `Fetching batch: startAt=X, maxResults=100... got Y issues (total: Z)`
-- Default max: 100,000 issues (configurable in `jira_c` struct)
-
-### campdeal
-
-**Purpose**: Analyze status mismatches and optionally execute transitions.
-
-**Usage**:
-```bash
-# Analysis only (no execution)
-./a5472campdeal0v1
-
-# Execute transitions for specific issue numbers
-./a5472campdeal0v1 "1-500,1000,2000-2100"
-```
-
-**Range Format**:
-- Single numbers: `100`, `200`, `300`
-- Ranges: `1-500`, `1000-2000`
-- Mixed: `1-5,35-60,101,200-300`
-- Examples:
-  - `"1-500"` - Issues 1 through 500
-  - `"1-5,35-60,101"` - Issues 1-5, 35-60, and 101
-  - `"200-300,500"` - Issues 200-300 and 500
-
-**What it does**:
-1. Loads campaign status from `cc_json.dat`
-2. Loads JIRA issues from `cc_jira.dat`
-3. Extracts campaign names from JIRA ticket summaries/descriptions
-4. Determines expected status for each ticket based on campaigns
-5. Identifies mismatches between current and expected status
-6. Generates mismatch reports:
-   - `mismatch_alpha.txt`: Issues with JIRA_ONLY campaigns (not in JSON)
-   - `mismatch_beta.txt`: Issues without JIRA_ONLY campaigns
-   - `mismatch_alpha.dat`: Serialized alpha mismatches
-   - `mismatch_beta.dat`: Serialized beta mismatches
-7. If issue numbers provided: Executes transitions for matching issues with mismatches
-
-**Output Files**:
-
-**mismatch_alpha.txt** (with JIRA_ONLY campaigns):
-```
-Mismatch #1 PRCAMPAIGNS-87
-  Summary:   New Campaigns: Run3Winter20CosmicGS
-  Status:    To Do -> Open
-  Action:    Add Campaign
-  JIRA_ONLY: Run3Winter20CosmicGS
-  Reason:    Has JIRA only + 45d (<60)
-```
-
-**mismatch_beta.txt** (without JIRA_ONLY campaigns):
-```
-Mismatch #1 PRCAMPAIGNS-100
-  Summary:   Campaign: Run3Summer2024
-  Status:    Open -> Enabled
-  Action:    Enable
-  JSON:
-             Run3Summer2024                        [ENABLED]
-  Reason:    All enabled
-```
-
-**Execution Mode**:
-When issue numbers are provided, the tool will:
-- Filter to only issues with status mismatches
-- Execute transitions sequentially
-- Show progress: `[1/442] Processing PRCAMPAIGNS-1... OK`
-- Skip issues that:
-  - Don't exist in the data
-  - Don't have mismatches (already correct status)
-
-## Status Workflow
-
-### JIRA Ticket Statuses
-
-- **To Do**: Initial state, no campaigns added yet
-- **Open**: Campaigns exist but some are disabled
-- **Enabled**: All campaigns are enabled
-- **Closed**: No campaigns or old JIRA_ONLY campaigns (>=60 days)
-
-### Status Determination Rules
-
-The expected status is determined by:
-
-1. **No campaigns found**: → `Closed`
-2. **Has disabled campaigns** (in JSON): → `Open`
-3. **Has only enabled campaigns** (in JSON): → `Enabled`
-4. **Has JIRA_ONLY campaigns** (not in JSON):
-   - If created >= 60 days ago: → `Closed`
-   - If created < 60 days ago: → `To Do`
-
-**Note**: Days are calculated from ticket **creation time**, not update time.
-
-### Transition Actions
-
-The tool automatically determines the transition sequence:
-
-| From → To | Actions |
-|-----------|---------|
-| To Do → Open | `Add Campaign` |
-| To Do → Closed | `Closed` |
-| To Do → Enabled | `Add Campaign`, `Enable` |
-| Open → Closed | `Closed` |
-| Open → Enabled | `Enable` |
-| Enabled → Open | `Disable` |
-| Enabled → Closed | `Closed` |
-| Closed → Open | `Reopen` |
-| Closed → Enabled | `Reopen`, `Enable` |
-
-## Campaign Extraction
-
-Campaigns are extracted from JIRA ticket summaries and descriptions using:
-
-1. **Text preprocessing**:
-   - Removes URLs
-   - Expands bracket patterns: `prefix[A|B|C]` → `prefixA prefixB prefixC`
-   - Removes `cmsDriver.py` command lines
-   - Removes secondary dataset paths (`/Neutrino`, `/MinBias`, etc.)
-
-2. **Campaign matching**:
-   - First pass: Exact matches against `campaigns.json`
-   - Second pass: Potential new campaigns (JIRA_ONLY) matching campaign name patterns
-
-3. **Veto logic**:
-   - JIRA_ONLY campaigns that are prefixes of all JSON campaigns are removed
-   - Example: If JSON has `Run3Summer2024A` and `Run3Summer2024B`, JIRA_ONLY `Run3Summer2024` is vetoed
-
-## File Formats
-
-### Input Files
-
-**campaigns.json**:
-```json
-{
-  "Run3Summer2024": {"go": true},
-  "Run3Winter2024": {"go": false},
-  "Run3Spring2024": {"go": true}
+    return 0;
 }
 ```
 
-### Output Files
+### Endpoint Registration
 
-**Binary (.dat files)**:
-- `cc_json.dat`: Serialized campaign status map
-- `cc_jira.dat`: Serialized JIRA issues vector
-- `mismatch_alpha.dat`: Serialized alpha mismatches
-- `mismatch_beta.dat`: Serialized beta mismatches
-
-**Text (.txt files)**:
-- `cc_json.txt`: Human-readable campaign list
-- `cc_jira.txt`: Human-readable JIRA issues list
-- `mismatch_alpha.txt`: Alpha mismatch report
-- `mismatch_beta.txt`: Beta mismatch report
-
-## Examples
-
-### Basic Workflow
-
-```bash
-# 1. Download latest data
-./a5472campdown0v1
-
-# 2. Analyze mismatches
-./a5472campdeal0v1
-
-# 3. Review reports
-cat mismatch_alpha.txt
-cat mismatch_beta.txt
-
-# 4. Execute fixes for specific issues
-./a5472campdeal0v1 "1-100"
-```
-
-### Execute Specific Issues
-
-```bash
-# Fix issues 1-50
-./a5472campdeal0v1 "1-50"
-
-# Fix specific issues
-./a5472campdeal0v1 "100,200,300"
-
-# Fix multiple ranges
-./a5472campdeal0v1 "1-100,200-300,500"
-```
-
-### Logging Output
-
-```bash
-# Save output to log file
-./a5472campdeal0v1 "1-500" | tee -a campdeal_1.log
-```
-
-## Troubleshooting
-
-### Connection Issues
-
-**Problem**: `ChunkedEncodingError` or `IncompleteRead` when fetching JIRA issues
-
-**Solution**: 
-- The tool uses pagination (100 issues per batch) to avoid this
-- If issues persist, reduce `max_results` in `jira_c` config
-- Check network connectivity to JIRA server
-
-### Execution Hangs
-
-**Problem**: Execution appears stuck
-
-**Solution**:
-- The tool now shows progress: `[X/Y] Processing PRCAMPAIGNS-XXX...`
-- Check which issue it's stuck on
-- May be network timeout - check JIRA server status
-- Python output may be buffered - progress output shows current issue
-
-### No Campaigns Found
-
-**Problem**: Tickets show "No campaigns" or status is always "Closed"
-
-**Solution**:
-- Check that `campaigns.json` exists and is valid JSON
-- Verify campaign names in JSON match patterns in JIRA tickets
-- Review `cc_json.txt` to see loaded campaigns
-
-### Transition Errors
-
-**Problem**: `Transition 'X' not found for PRCAMPAIGNS-Y`
-
-**Solution**:
-- Check available transitions in JIRA for that issue
-- Verify the issue workflow allows the transition
-- Some transitions may require specific conditions in JIRA
-
-### Old Data Files
-
-**Problem**: Deserialization errors or missing fields
-
-**Solution**:
-- Re-run `campdown` to regenerate `.dat` files
-- Data format may have changed (e.g., added `created` field)
-- Delete old `.dat` files and regenerate
-
-## Configuration
-
-### JIRA Settings
-
-Edit `_f5472jirafunc0v1.hh` to modify:
+#### Synchronous Endpoints
 
 ```cpp
-struct jira_c
-{
-  std::string server = "https://its.cern.ch/jira";
-  std::string token = "YOUR_TOKEN";
-  std::string query = "project=PRCAMPAIGNS ORDER BY updated DESC, priority DESC";
-  int timeout = 45;
-  int max_results = 100000;
+app.get_("/api/health", [](const http_q& q, http_s& s) {
+    s.status_(200);
+    s.send_json_(nlohmann::json{
+        {"status", "healthy"},
+        {"timestamp", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now())}
+    });
+}, false); // false = sync
+```
+
+#### Asynchronous Endpoints
+
+```cpp
+app.post_("/api/process", [](const http_q& q, http_s& s) {
+    // Access request data
+    std::string user_id = q.query_("user_id");
+    std::string data = q.body_();
+
+    // Perform async business logic
+    // Processing happens in thread pool automatically
+
+    // Send response
+    s.status_(200);
+    s.send_json_(nlohmann::json{
+        {"result", "processed"},
+        {"user_id", user_id}
+    });
+}, true); // true = async (default)
+```
+
+## Request Handling
+
+### Request Object (`http_q`)
+
+```cpp
+app.post_("/api/data", [](const http_q& q, http_s& s) {
+    // URL and path information
+    std::string full_url = q.url_();
+    std::string method = q.url_prefix_();
+    std::string rest_path = q.url_rest_();
+    std::string query = q.url_query_();
+    std::string rest_raw = q.rest_raw_();
+
+    // Query parameters
+    std::string param = q.query_("key");
+    bool has_param = q.query_has_("key");
+
+    // Headers
+    std::string auth = q.header_("authorization");
+    bool has_auth = q.header_has_("authorization");
+
+    // Request body
+    std::string body = q.body_(); // GET the dat_t either malloc or on memory pool
+
+    // Environment expansion (for command execution)
+    std::unordered_map<std::string, std::string> env
+      = q.expand_("PATH=/usr/bin|HOME=/tmp");
+
+    // EXE
+    // DAT
+    // DSK
+    // VTX
+    // RAD
+    // ... (const: Write out)
+});
+```
+
+### Response Object (`http_s`)
+
+```cpp
+app.get_("/api/response", [](const http_q& q, http_s& s) {
+    // Status codes
+    s.status_(200); // or s.status_(404, "Not Found");
+
+    // Answer status
+    s.quit_(); // Close connection after response
+    s.stay_(); // Keep connection alive (HTTP/1.1 default)
+
+    // Headers
+    s.header_("Content-Type", "application/json");
+    s.header_("Cache-Control", "no-cache");
+    s.header_json_(); // Content-Type: application/json
+    s.header_text_(); // Content-Type: text/plain
+    s.header_html_(); // Content-Type: text/html
+
+    // Fill body
+    s.body_(dat_t/std::string); // fill dat_t pointed
+
+    // Response body
+    s.send_(); // send dat_t pointed
+    s.send_text_("Hello World");
+    s.send_json_(nlohmann::json{{"message", "success"}});
+    s.send_html_("<h1>Title</h1>");
+
+    // DAT
+    // ... (Read in)
+});
+```
+
+## Command Execution
+
+### Synchronous Command Execution
+
+```cpp
+app.post_("/api/execute", [](const http_q& q, http_s& s) {
+    exe_r result = q.exe_load_(
+        "ls",           // command
+        "-la /tmp",     // arguments
+        "/tmp",         // working directory
+        {},             // environment variables
+        5000,           // timeout (ms)
+        1,              // capture mode (1=stdout only)
+        0               // sampling period (0=no sampling)
+    );
+
+    if (result.status == 3 && result.exit_code == 0) {
+        s.send_text_(result.stdout_info);
+    } else {
+        s.status_(500);
+        s.send_json_(nlohmann::json{
+            {"error", "Command failed"},
+            {"exit_code", result.exit_code},
+            {"stderr", result.stderr_info}
+        });
+    }
+});
+```
+
+### Fire-and-Forget Execution
+
+```cpp
+app.post_("/api/fire", [](const http_q& q, http_s& s) {
+    exe_r result = q.exe_fire_(
+        "backup_script.sh",
+        "--full",
+        "/var/data"
+    );
+
+    // Always returns 202 for fire-and-forget
+    s.status_(202);
+    s.send_text_("Job triggered");
+});
+```
+
+### Capture Modes
+
+- `0`: No capture (high performance)
+- `1`: stdout only
+- `2`: stderr only
+- `3`: Both stdout and stderr
+- `4`: Merged (stderr redirected to stdout)
+
+## Advanced Features
+
+### Custom Environment Variables
+
+```cpp
+std::unordered_map<std::string, std::string> env = {
+    {"PATH", "/usr/local/bin:/usr/bin"},
+    {"CUSTOM_VAR", "value"}
 };
+
+exe_r result = q.exe_run_("my_command", "args", "/tmp", env);
 ```
 
-### Batch Size
+### Complex Environment Parsing
 
-Pagination batch size is set in `jira_fetch_campaign_()`:
-```python
-batch_size = 100  # Adjust if needed
+```cpp
+// Environment string: "KEY1=value1|KEY2=value2"
+std::string env_str = "PATH=/usr/bin|HOME=/tmp|CONFIG_FILE=/etc/app.conf";
+std::unordered_map<std::string, std::string> env = q.expand_(env_str);
 ```
 
-## Notes
+### Timeout and Sampling
 
-- **Days calculation**: Uses ticket **creation time**, not update time
-- **Campaign matching**: Case-sensitive exact matching against JSON
-- **JIRA_ONLY campaigns**: Must match campaign name pattern (alphanumeric, underscores, hyphens)
-- **Execution**: Only executes transitions for issues with mismatches
-- **Progress**: Execution shows `[X/Y] Processing...` for visibility
+```cpp
+exe_r result = q.exe_run_(
+    "long_running_command",
+    "",
+    "",
+    {},
+    30000,  // 30 second timeout
+    1,      // capture stdout
+    1000    // sample every 1 second (for monitoring)
+);
+```
 
-## See Also
+## Security Considerations
 
-- JIRA API documentation: https://developer.atlassian.com/cloud/jira/platform/rest/v3/
-- Python JIRA library: https://jira.readthedocs.io/
+### Input Validation
+
+- All query parameters are URL-decoded
+- Command arguments use `wordexp` for secure parsing
+- No shell metacharacter injection possible
+
+### Resource Limits
+
+- Configurable timeouts prevent hanging processes
+- Memory pooling prevents excessive allocations
+- Thread pool sizing prevents resource exhaustion
+
+## Configuration Options
+
+### Server Configuration
+
+```cpp
+// SSL/TLS
+app.ssl_("/path/to/cert.pem", "/path/to/key.pem");
+
+// Listening
+app.listen_("0.0.0.0", 8080);     // All interfaces
+app.listen_("127.0.0.1", 8080);   // Localhost only
+
+// Thread pool size (default: CPU cores * 2)
+pthd.rebn_(16); // 16 worker threads
+```
+
+### Endpoint Configuration
+
+```cpp
+app.post_("/api/endpoint",
+    [](const http_q& q, http_s& s) {
+        // Business logic
+    },
+    true,   // async: true/false
+    30000,  // timeout_ms: 0 = no timeout
+    true,   // compress: enable compression
+    1024,   // min_size: minimum size for compression
+    1,      // gzip_quality: 1-9
+    1       // brotli_quality: 1-11
+);
+```
+
+## Production Deployment
+
+### Graceful Shutdown
+
+```cpp
+app.signal_(); // Handle SIGINT/SIGTERM
+app.serve_();  // Blocks until shutdown signal
+```
+
+### Health Checks
+
+```cpp
+app.get_("/health", [](const http_q& q, http_s& s) {
+    s.status_(200);
+    s.send_json_(nlohmann::json{
+        {"status", "healthy"},
+        {"uptime", get_uptime()},
+        {"version", "1.0.0"}
+    });
+});
+```
+
+### Monitoring Integration
+
+```cpp
+app.get_("/metrics", [](const http_q& q, http_s& s) {
+    s.send_json_(collect_metrics());
+});
+```
+
+## API Reference
+
+### Core Classes
+
+- `http_a`: Main server class
+- `http_q`: Request object
+- `http_s`: Response object
+- `exe_r`: Command execution result
+
+### Key Methods
+
+#### Server Control
+- `listen_(host, port)`: Bind server to address
+- `ssl_(cert, key)`: Enable HTTPS
+- `signal_()`: Enable signal handling
+- `start_()`: Start server in background thread
+- `serve_()`: Start server (blocking)
+- `stop_()`: Stop server
+
+#### Endpoint Registration
+- `get_(path, handler, async, timeout, compress, ...)`: Register GET endpoint
+- `post_(path, handler, async, timeout, compress, ...)`: Register POST endpoint
+- `put_(path, handler, async, timeout, compress, ...)`: Register PUT endpoint
+- `delete_(path, handler, async, timeout, compress, ...)`: Register DELETE endpoint
+
+#### Request Processing
+- `exe_run_(cmd, args, dir, env, timeout, capture, period)`: Execute command
+- `exe_fire_(cmd, args, dir, env)`: Execute asynchronously
+- `exe_load_(cmd, args, dir, env)`: Execute synchronously with output capture
+
+#### Response Building
+- `status_(code, reason)`: Set HTTP status
+- `header_(name, value)`: Add HTTP header
+- `send_text_(content)`: Send text response
+- `send_json_(data)`: Send JSON response
+- `send_html_(content)`: Send HTML response
+
+This framework provides enterprise-grade HTTP server capabilities with security, performance, and reliability as core design principles.
 
